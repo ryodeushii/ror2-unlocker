@@ -1,5 +1,6 @@
 [workspace]
-members = ["crates/profile-core", "src-tauri"]
+members = ["crates/profile-core", "crates/profile-wasm", "src-tauri"]
+default-members = ["crates/profile-core", "src-tauri"]
 resolver = "2"
 
 [workspace.package]

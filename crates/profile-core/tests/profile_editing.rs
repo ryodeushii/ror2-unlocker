@@ -1,3 +1,5 @@
+#![cfg(feature = "native")]
+
 use ror2_profile_core::{catalog, open_profile, preview_changes, save_changes, ChangeRequest};
 use std::fs;
 use std::io::{Read, Write};

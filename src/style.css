@@ -653,6 +653,28 @@ input[aria-invalid="true"] {
   font-size: 10px;
   user-select: all;
 }
+.download-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.download-actions a {
+  display: block;
+  border: 1px solid var(--cyan);
+  border-radius: 3px;
+  padding: 9px 12px;
+  color: var(--cyan);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.download-actions a:hover {
+  background: #243c50;
+}
+.download-actions a[aria-disabled="true"] {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
 .save-actions {
   display: grid;
   gap: 8px;

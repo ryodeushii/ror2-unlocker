@@ -3,8 +3,6 @@ import "@fontsource/barlow-condensed/700.css";
 import "@fontsource/ibm-plex-sans/400.css";
 import "@fontsource/ibm-plex-sans/500.css";
 import "@fontsource/ibm-plex-sans/600.css";
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
 import type {
   Catalog,
   ChangeRequest,
@@ -12,12 +10,14 @@ import type {
   EntryKind,
   Preview,
   ProfileSnapshot,
-  SaveResult,
 } from "./types";
 import "./style.css";
+import type { DownloadResult, ProfileBackend } from "./backend";
 
 const MAX_COINS = 2147483647;
-const desktop = "__TAURI_INTERNALS__" in window;
+const web = import.meta.env.MODE === "web";
+const desktop = !web && "__TAURI_INTERNALS__" in window;
+let backend: ProfileBackend | null = null;
 const kinds: { id: EntryKind; label: string; stamp: string }[] = [
   { id: "characters", label: "Survivors", stamp: "SV" },
   { id: "skills", label: "Skills", stamp: "SK" },
@@ -43,10 +43,13 @@ app.innerHTML = `
         <button id="pick-profile" class="primary" type="button">Open profile XML</button>
         <form id="path-form"><label for="manual-path">Or enter a file path</label><div class="input-action"><input id="manual-path" type="text" placeholder="Full path to your profile.xml" spellcheck="false" autocomplete="off" required /><button type="submit" id="open-path">Open path</button></div></form>
       </fieldset>
+      <input id="profile-file" type="file" accept=".xml" aria-label="Choose profile XML" hidden />
     </section>
     <div id="notice" class="notice" role="status" aria-live="polite" aria-atomic="true"></div>
     <div id="error" class="error" role="alert" hidden></div>
-    <section id="desktop-guidance" class="desktop-guidance" hidden><h2>Run the desktop app to open profiles</h2><p>The browser cannot read or save your profile. Launch the Linux or Windows desktop application to use the native profile editor.</p></section>
+    <button id="retry-catalog" type="button" hidden>Retry loading catalog</button>
+    <section id="browser-guidance" class="desktop-guidance" hidden><h2>Browser edition · local files only</h2><p>Your XML stays in this browser tab. It is not uploaded or stored. Prepare and download the modified profile and exact original backup, then manually replace the original with the game closed. This page cannot write to or replace your source file.</p></section>
+    <section id="desktop-guidance" class="desktop-guidance" hidden><h2>Run the desktop app to open profiles</h2><p>This build requires the Linux or Windows desktop application. Use the browser edition to edit a selected XML file locally and download the result.</p></section>
     <div class="workspace">
       <nav class="category-rail" aria-label="Unlock categories"><p class="eyebrow">Manifest sections</p><div id="categories"></div><div class="rail-note"><span class="signal-dot" aria-hidden="true"></span><p>Additive edits only.<br />Existing progress stays intact.</p></div></nav>
       <section class="manifest" aria-labelledby="manifest-title">
@@ -69,11 +72,12 @@ app.innerHTML = `
         </fieldset>
         <section class="preview-section" aria-labelledby="preview-title"><h3 id="preview-title">Exact preview</h3><div id="preview-content"><p class="subdued">Stage changes, then preview the fields that will be added.</p></div></section>
         <div class="save-actions"><button id="preview-button" class="primary" type="button">Preview changes</button><button id="save-button" type="button">Save with backup</button></div>
-        <div class="safety-note"><h3>Before saving</h3><p>Close Risk of Rain 2. Steam Cloud can replace local edits; let synchronization finish and resolve any conflict carefully.</p><p>Each changed save creates a unique backup beside the original. DLC ownership and Steam achievements are not changed.</p></div>
+        <section id="downloads" class="backup-result" aria-label="Prepared profile downloads" hidden><h3>Downloads ready</h3><p>Download both files, then replace the original with the game closed. Your selected original is unchanged.</p><div class="download-actions"><a id="download-modified">Download modified profile</a><a id="download-backup">Download original backup</a></div></section>
+        <div class="safety-note"><h3 id="safety-title">Before saving</h3><p>Close Risk of Rain 2. Steam Cloud can replace local edits; let synchronization finish and resolve any conflict carefully.</p><p id="save-guidance">Each changed save creates a unique backup beside the original. DLC ownership and Steam achievements are not changed.</p></div>
       </aside>
     </div>
   </main>
-  <footer><span>Risk of Rain 2 / local profile operations</span><span>Preview → backup → save</span></footer>
+  <footer><span>Risk of Rain 2 / local profile operations</span><span id="workflow-label">Preview → backup → save</span></footer>
   <dialog id="discard-dialog" aria-labelledby="discard-title"><form method="dialog"><p class="eyebrow">Unsaved changes</p><h2 id="discard-title">Open another profile?</h2><p>Your staged unlocks and coin edit will be discarded after the new profile opens successfully.</p><div class="dialog-actions"><button value="cancel" autofocus>Keep editing</button><button value="discard" class="primary">Open another profile</button></div></form></dialog>
 `;
 
@@ -102,6 +106,7 @@ let busy = false;
 let preview: Preview | null = null;
 let previewRequest: ChangeRequest | null = null;
 let lastBackup: string | null = null;
+let prepared: { modified: string; backup: string } | null = null;
 const search = element<HTMLInputElement>("search");
 const expansion = element<HTMLSelectElement>("expansion");
 const lockedOnly = element<HTMLInputElement>("locked-only");
@@ -138,12 +143,62 @@ function request(): ChangeRequest {
     coins: coinValue(),
   };
 }
+function disposeDownloads(): void {
+  if (prepared) {
+    URL.revokeObjectURL(prepared.modified);
+    URL.revokeObjectURL(prepared.backup);
+    prepared = null;
+  }
+  for (const id of ["download-modified", "download-backup"]) {
+    const link = element<HTMLAnchorElement>(id);
+    link.removeAttribute("href");
+    link.removeAttribute("download");
+  }
+  element("downloads").hidden = true;
+}
+
+function prepareDownloads(result: DownloadResult): void {
+  disposeDownloads();
+  if (
+    !result.preview.total_additions &&
+    result.preview.coins_before === result.preview.coins_after
+  )
+    return;
+  const modified = URL.createObjectURL(
+    new Blob([result.xml], {
+      type: "application/xml;charset=utf-8",
+      endings: "transparent",
+    }),
+  );
+  let backup: string;
+  try {
+    backup = URL.createObjectURL(
+      new Blob([result.original], { type: "application/xml;charset=utf-8" }),
+    );
+  } catch (error) {
+    URL.revokeObjectURL(modified);
+    throw error;
+  }
+  prepared = { modified, backup };
+  const modifiedLink = element<HTMLAnchorElement>("download-modified");
+  modifiedLink.href = modified;
+  modifiedLink.download = `${result.filename.replace(/\.xml$/i, "")}.unlocked.xml`;
+  const backupLink = element<HTMLAnchorElement>("download-backup");
+  backupLink.href = backup;
+  backupLink.download = `${result.filename}.backup.xml`;
+  element("downloads").hidden = false;
+}
 function invalidatePreview(): void {
+  disposeDownloads();
   preview = null;
   previewRequest = null;
   lastBackup = null;
   element("error").hidden = true;
-  status("Staged changes updated. Preview again before saving.");
+  status(
+    web
+      ? "Staged changes updated. Preview again before preparing downloads."
+      : "Staged changes updated. Preview again before saving.",
+  );
 }
 function visibleEntries(): Entry[] {
   if (!catalog) return [];
@@ -364,7 +419,9 @@ function renderInspector(): void {
       content.append(
         node(
           "p",
-          "No changes needed. Saving this preview will not write the file or create a backup.",
+          web
+            ? "No changes needed. No modified download or backup will be prepared."
+            : "No changes needed. Saving this preview will not write the file or create a backup.",
           "subdued",
         ),
       );
@@ -410,7 +467,15 @@ function renderInspector(): void {
     busy || !preview || !previewRequest || Boolean(coinError);
 }
 function render(): void {
-  element<HTMLFieldSetElement>("profile-controls").disabled = busy || !desktop;
+  element<HTMLFieldSetElement>("profile-controls").disabled =
+    busy || !backend || !catalog;
+  element<HTMLButtonElement>("retry-catalog").disabled = busy;
+  element("retry-catalog").hidden = Boolean(catalog) || (!web && !desktop);
+  for (const id of ["download-modified", "download-backup"]) {
+    const link = element<HTMLAnchorElement>(id);
+    link.setAttribute("aria-disabled", String(busy));
+    link.tabIndex = busy ? -1 : 0;
+  }
   element<HTMLFieldSetElement>("manifest-controls").disabled = busy || !catalog;
   element<HTMLFieldSetElement>("staging-controls").disabled = busy || !profile;
   app?.setAttribute("aria-busy", String(busy));
@@ -439,7 +504,9 @@ async function run(
     target.textContent = error instanceof Error ? error.message : String(error);
     target.hidden = false;
     status(
-      "Operation failed. Review the error and retry; re-open the profile if its file changed.",
+      web
+        ? "Operation failed. Review the error and retry. Your selected original and staged changes are unchanged."
+        : "Operation failed. Review the error and retry; re-open the profile if its file changed.",
     );
   } finally {
     busy = false;
@@ -468,6 +535,7 @@ async function confirmProfileChange(): Promise<boolean> {
   });
 }
 function applyProfile(snapshot: ProfileSnapshot): void {
+  disposeDownloads();
   profile = snapshot;
   unlocked = new Set(snapshot.unlocked_ids);
   selection.clear();
@@ -478,7 +546,9 @@ function applyProfile(snapshot: ProfileSnapshot): void {
   element<HTMLInputElement>("manual-path").value = snapshot.path;
 }
 async function openProfile(path: string): Promise<void> {
-  const snapshot = await invoke<ProfileSnapshot>("open_profile", { path });
+  if (!backend?.openPath)
+    throw new Error("Manual paths are available only in the desktop app.");
+  const snapshot = await backend.openPath(path);
   applyProfile(snapshot);
   status(
     `Opened ${snapshot.name}. Stage missing entries or edit your lunar coin balance.`,
@@ -486,7 +556,15 @@ async function openProfile(path: string): Promise<void> {
 }
 async function loadCatalog(): Promise<void> {
   await run(async () => {
-    catalog = await invoke<Catalog>("get_catalog");
+    if (!backend) {
+      // Platform-specific imports keep generated WASM out of desktop bundles and Tauri out of web bundles.
+      if (import.meta.env.MODE === "web")
+        backend = (await import("./browser-backend")).backend;
+      else if (desktop) backend = (await import("./desktop-backend")).backend;
+    }
+    if (!backend)
+      throw new Error("Open the desktop app or the browser edition.");
+    catalog = await backend.getCatalog();
     const allExpansions = node("option", "All expansions");
     allExpansions.value = "";
     expansion.replaceChildren(allExpansions);
@@ -511,14 +589,16 @@ element("pick-profile").addEventListener("click", () => {
       status("Kept the current profile and staged changes.");
       return;
     }
-    const path = await open({
-      multiple: false,
-      directory: false,
-      title: "Open Risk of Rain 2 profile",
-      filters: [{ name: "UserProfile XML", extensions: ["xml"] }],
-    });
-    if (typeof path === "string") await openProfile(path);
-    else
+    if (!backend) throw new Error("Wait for the catalog to load.");
+    const snapshot = await backend.pickProfile(
+      element<HTMLInputElement>("profile-file"),
+    );
+    if (snapshot) {
+      applyProfile(snapshot);
+      status(
+        `Opened ${snapshot.name}. Stage missing entries or edit your lunar coin balance.`,
+      );
+    } else
       status("Profile selection canceled. Your staged changes are unchanged.");
   }, "Choosing a profile…");
 });
@@ -534,6 +614,14 @@ element<HTMLFormElement>("path-form").addEventListener("submit", (event) => {
     await openProfile(path);
   }, "Opening profile…");
 });
+element("retry-catalog").addEventListener("click", () => {
+  void loadCatalog();
+});
+for (const id of ["download-modified", "download-backup"]) {
+  element(id).addEventListener("click", (event) => {
+    if (busy || !prepared) event.preventDefault();
+  });
+}
 search.addEventListener("input", renderEntries);
 expansion.addEventListener("change", renderEntries);
 lockedOnly.addEventListener("change", renderEntries);
@@ -566,37 +654,66 @@ element("max-coins").addEventListener("click", () => {
   renderInspector();
 });
 element("preview-button").addEventListener("click", () => {
-  void run(async () => {
-    const args = request();
-    preview = null;
-    previewRequest = null;
-    const result = await invoke<Preview>("preview_changes", { args });
-    preview = result;
-    previewRequest = args;
-    status(
-      result.total_additions || result.coins_before !== result.coins_after
-        ? "Preview ready. Review the exact additions before saving."
-        : "Preview ready: no changes needed.",
-    );
-  }, "Checking profile revision and previewing changes…");
+  void run(
+    async () => {
+      const args = request();
+      preview = null;
+      previewRequest = null;
+      if (!backend)
+        throw new Error("Open the desktop app or the browser edition.");
+      const result = await backend.preview(args);
+      preview = result;
+      previewRequest = args;
+      status(
+        result.total_additions || result.coins_before !== result.coins_after
+          ? web
+            ? "Preview ready. Review the exact additions before preparing downloads."
+            : "Preview ready. Review the exact additions before saving."
+          : "Preview ready: no changes needed.",
+      );
+    },
+    web
+      ? "Previewing changes against the selected original…"
+      : "Checking profile revision and previewing changes…",
+  );
 });
 element("save-button").addEventListener("click", () => {
   if (!previewRequest || !preview) return;
   const args = previewRequest;
-  void run(async () => {
-    // Request controls are disabled while pending; only a current successful preview can reach this command.
-    preview = null;
-    previewRequest = null;
-    const result = await invoke<SaveResult>("save_changes", { args });
-    applyProfile(result.profile);
-    lastBackup = result.backup_path;
-    preview = result.preview;
-    status(
-      result.backup_path
-        ? "Profile saved. Staging cleared; the original XML is preserved in the backup below."
-        : "No changes needed. The profile was not written and no backup was created.",
-    );
-  }, "Saving profile and preserving the original backup…");
+  void run(
+    async () => {
+      // Request controls are disabled while pending; only a current successful preview can reach this command.
+      if (!backend)
+        throw new Error("Open the desktop app or the browser edition.");
+      if (!web) {
+        preview = null;
+        previewRequest = null;
+      }
+      const result = await backend.save(args);
+      if (result.kind === "downloads") {
+        prepareDownloads(result);
+        preview = result.preview;
+        status(
+          result.preview.total_additions ||
+            result.preview.coins_before !== result.preview.coins_after
+            ? "Downloads ready. Download both files, then replace the original with the game closed."
+            : "No changes needed. Your original is unchanged; no downloads were prepared.",
+        );
+      } else {
+        applyProfile(result.profile);
+        lastBackup = result.backup_path;
+        preview = result.preview;
+        status(
+          result.backup_path
+            ? "Profile saved. Staging cleared; the original XML is preserved in the backup below."
+            : "No changes needed. The profile was not written and no backup was created.",
+        );
+      }
+    },
+    web
+      ? "Preparing modified profile and exact original backup…"
+      : "Saving profile and preserving the original backup…",
+  );
 });
 window.addEventListener("beforeunload", (event) => {
   if (hasStagedChanges()) {
@@ -605,12 +722,25 @@ window.addEventListener("beforeunload", (event) => {
   }
 });
 
-element("runtime-tag").textContent = desktop
-  ? "Local desktop session"
-  : "Browser / read-only guidance";
-element("desktop-guidance").hidden = desktop;
+window.addEventListener("pagehide", disposeDownloads);
+element("runtime-tag").textContent = web
+  ? "Browser edition · local WASM"
+  : desktop
+    ? "Local desktop session"
+    : "Desktop build / browser guidance";
+element("desktop-guidance").hidden = desktop || web;
+element("browser-guidance").hidden = !web;
+element("path-form").hidden = !desktop;
+if (web) {
+  element("save-button").textContent = "Prepare downloads";
+  element("safety-title").textContent = "Before replacing your profile";
+  element("save-guidance").textContent =
+    "Download and keep the exact original backup before replacing your profile. Downloads do not change the selected source. DLC ownership and Steam achievements are not changed.";
+  element("workflow-label").textContent =
+    "Preview → download both → manually replace";
+}
 render();
-if (desktop) void loadCatalog();
+if (desktop || web) void loadCatalog();
 else {
   status(
     "Run the desktop app to open profiles. No profile operations are available in the browser.",

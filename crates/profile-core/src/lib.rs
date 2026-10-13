@@ -2,15 +2,22 @@ use roxmltree::{Document, Node};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
+#[cfg(feature = "native")]
 use std::fs::{self, File, OpenOptions};
+#[cfg(feature = "native")]
 use std::io::{Read, Write};
 use std::ops::Range;
+#[cfg(feature = "native")]
 use std::path::{Path, PathBuf};
-use std::sync::{LazyLock, Mutex};
+use std::sync::LazyLock;
+#[cfg(feature = "native")]
+use std::sync::Mutex;
+#[cfg(feature = "native")]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const MAX_BYTES: u64 = 32 * 1024 * 1024;
 const MAX_COINS: u64 = i32::MAX as u64;
+#[cfg(feature = "native")]
 static SAVE_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,6 +69,13 @@ pub struct SaveResult {
     pub profile: ProfileSnapshot,
     pub backup_path: Option<String>,
     pub preview: Preview,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EditedProfile {
+    pub profile: ProfileSnapshot,
+    pub preview: Preview,
+    pub xml: String,
 }
 
 static CATALOG: LazyLock<Catalog> = LazyLock::new(|| {
@@ -238,6 +252,15 @@ fn parse(xml: String) -> Result<Profile, String> {
     })
 }
 
+fn parse_bytes(bytes: Vec<u8>) -> Result<Profile, String> {
+    if bytes.len() as u64 > MAX_BYTES {
+        return Err("Profile exceeds the 32 MiB limit".into());
+    }
+    let xml = String::from_utf8(bytes).map_err(|_| "Only UTF-8 profile XML is supported")?;
+    parse(xml)
+}
+
+#[cfg(feature = "native")]
 fn read_profile(path: &Path) -> Result<(Profile, fs::Permissions), String> {
     let file = File::open(path).map_err(|e| format!("Cannot open {}: {e}", path.display()))?;
     let metadata = file
@@ -253,17 +276,13 @@ fn read_profile(path: &Path) -> Result<(Profile, fs::Permissions), String> {
     file.take(MAX_BYTES + 1)
         .read_to_end(&mut bytes)
         .map_err(|e| format!("Cannot read profile: {e}"))?;
-    if bytes.len() as u64 > MAX_BYTES {
-        return Err("Profile exceeds the 32 MiB limit".into());
-    }
-    let xml = String::from_utf8(bytes).map_err(|_| "Only UTF-8 profile XML is supported")?;
-    Ok((parse(xml)?, metadata.permissions()))
+    Ok((parse_bytes(bytes)?, metadata.permissions()))
 }
 
 fn revision(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
-fn snapshot(path: &Path, p: &Profile) -> ProfileSnapshot {
+fn snapshot_label(path: &str, name: &str, p: &Profile) -> ProfileSnapshot {
     let unlocked_ids = catalog()
         .entries
         .iter()
@@ -279,26 +298,67 @@ fn snapshot(path: &Path, p: &Profile) -> ProfileSnapshot {
         .map(|e| e.id.clone())
         .collect();
     ProfileSnapshot {
-        path: path.to_string_lossy().into_owned(),
-        name: path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .into_owned(),
+        path: path.to_owned(),
+        name: name.to_owned(),
         coins: p.coins,
         revision: revision(p.xml.as_bytes()),
         unlocked_ids,
     }
 }
 
+#[cfg(feature = "native")]
+fn snapshot(path: &Path, p: &Profile) -> ProfileSnapshot {
+    snapshot_label(
+        &path.to_string_lossy(),
+        &path.file_name().unwrap_or_default().to_string_lossy(),
+        p,
+    )
+}
+
+pub fn inspect_profile_bytes(name: &str, bytes: Vec<u8>) -> Result<ProfileSnapshot, String> {
+    let profile = parse_bytes(bytes)?;
+    Ok(snapshot_label(name, name, &profile))
+}
+
+pub fn preview_profile_bytes(bytes: Vec<u8>, args: &ChangeRequest) -> Result<Preview, String> {
+    let profile = parse_bytes(bytes)?;
+    check_revision(
+        &profile,
+        &args.revision,
+        "Profile revision does not match the supplied bytes.",
+    )?;
+    plan(&profile, args)
+}
+
+pub fn edit_profile_bytes(bytes: Vec<u8>, args: &ChangeRequest) -> Result<EditedProfile, String> {
+    let profile = parse_bytes(bytes)?;
+    check_revision(
+        &profile,
+        &args.revision,
+        "Profile revision does not match the supplied bytes.",
+    )?;
+    let preview = plan(&profile, args)?;
+    let edited = if preview.total_additions == 0 && preview.coins_before == preview.coins_after {
+        profile
+    } else {
+        render(&profile, &preview)?
+    };
+    Ok(EditedProfile {
+        profile: snapshot_label(&args.path, &args.path, &edited),
+        preview,
+        xml: edited.xml,
+    })
+}
+
+#[cfg(feature = "native")]
 pub fn open_profile(path: &Path) -> Result<ProfileSnapshot, String> {
     let path = fs::canonicalize(path).map_err(|e| format!("Cannot locate profile: {e}"))?;
     let (profile, _) = read_profile(&path)?;
     Ok(snapshot(&path, &profile))
 }
-fn check_revision(p: &Profile, expected: &str) -> Result<(), String> {
+fn check_revision(p: &Profile, expected: &str, message: &str) -> Result<(), String> {
     if revision(p.xml.as_bytes()) != expected {
-        return Err("Profile changed on disk. Reopen it before previewing or saving.".into());
+        return Err(message.into());
     }
     Ok(())
 }
@@ -344,9 +404,14 @@ fn plan(p: &Profile, args: &ChangeRequest) -> Result<Preview, String> {
     })
 }
 
+#[cfg(feature = "native")]
 pub fn preview_changes(args: &ChangeRequest) -> Result<Preview, String> {
     let (p, _) = read_profile(Path::new(&args.path))?;
-    check_revision(&p, &args.revision)?;
+    check_revision(
+        &p,
+        &args.revision,
+        "Profile changed on disk. Reopen it before previewing or saving.",
+    )?;
     plan(&p, args)
 }
 
@@ -423,6 +488,7 @@ fn render(p: &Profile, preview: &Preview) -> Result<Profile, String> {
     parse(xml)
 }
 
+#[cfg(feature = "native")]
 fn sync_directory(path: &Path) -> Result<(), String> {
     #[cfg(unix)]
     File::open(path)
@@ -432,6 +498,7 @@ fn sync_directory(path: &Path) -> Result<(), String> {
     let _ = path;
     Ok(())
 }
+#[cfg(feature = "native")]
 fn backup(
     path: &Path,
     parent: &Path,
@@ -477,13 +544,18 @@ fn backup(
     Err("Cannot create a unique backup; original unchanged".into())
 }
 
+#[cfg(feature = "native")]
 pub fn save_changes(args: &ChangeRequest) -> Result<SaveResult, String> {
     let _guard = SAVE_LOCK
         .lock()
         .map_err(|_| "Profile save lock is unavailable")?;
     let path = fs::canonicalize(&args.path).map_err(|e| format!("Cannot locate profile: {e}"))?;
     let (p, permissions) = read_profile(&path)?;
-    check_revision(&p, &args.revision)?;
+    check_revision(
+        &p,
+        &args.revision,
+        "Profile changed on disk. Reopen it before previewing or saving.",
+    )?;
     let preview = plan(&p, args)?;
     if preview.total_additions == 0 && preview.coins_before == preview.coins_after {
         return Ok(SaveResult {
@@ -506,7 +578,11 @@ pub fn save_changes(args: &ChangeRequest) -> Result<SaveResult, String> {
         .map_err(|e| format!("Cannot sync replacement: {e}"))?;
     let backup_path = backup(&path, parent, &p, &permissions)?;
     let (latest, _) = read_profile(&path)?;
-    check_revision(&latest, &args.revision)?;
+    check_revision(
+        &latest,
+        &args.revision,
+        "Profile changed on disk. Reopen it before previewing or saving.",
+    )?;
     // tempfile uses atomic rename on Unix and MOVEFILE_REPLACE_EXISTING on Windows.
     temp.persist(&path).map_err(|e| {
         format!(

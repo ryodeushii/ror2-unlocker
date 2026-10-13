@@ -5,11 +5,13 @@
       "**",
       "!**/target",
       "!**/dist",
+      "!**/dist-web",
       "!**/node_modules",
       "!catalog.json",
       "!pnpm-lock.yaml",
       "!src-tauri/gen",
-      "!src-tauri/icons"
+      "!src-tauri/icons",
+      "!wasm/pkg"
     ]
   },
   "formatter": {

@@ -3,5 +3,7 @@
 /target/
 /src-tauri/target/
 /src-tauri/gen/
+/dist-web/
+/wasm/pkg/
 *.bak
 *.xml
