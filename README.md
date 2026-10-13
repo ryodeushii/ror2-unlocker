@@ -69,6 +69,8 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 
 Use `pnpm format` and `cargo fmt --all` to format changed frontend/configuration and Rust files respectively.
 
+`.gitattributes` keeps source files at LF line endings on every platform, including Windows checkouts with `core.autocrlf=true`.
+
 ### Native packages
 
 ```sh
@@ -77,7 +79,7 @@ pnpm desktop:build
 
 Build on the target operating system:
 
-- Linux: `.deb` and `.AppImage` packages in `target/release/bundle/deb/` and `target/release/bundle/appimage/`.
+- Linux: `.AppImage` packages only, in `target/release/bundle/appimage/`.
 - Windows: NSIS `.exe` and WiX `.msi` installers in `target/release/bundle/nsis/` and `target/release/bundle/msi/`.
 
 Linux packages are built against the host's libraries. Use the Ubuntu 22.04 CI job for that compatibility baseline rather than assuming an Arch-built package runs on older distributions. If FUSE is unavailable, an AppImage can use `APPIMAGE_EXTRACT_AND_RUN=1`.
@@ -100,7 +102,7 @@ Initial local verification:
 
 - 14 Rust behavior tests passed, including empty/self-closing XML fields, dependency grants, unknown-data preservation, coin boundaries, stale saves, no-op saves, exact backups, permissions, and invalid inputs.
 - TypeScript/Biome checks and workspace Clippy passed. No language servers were configured; compiler and linter diagnostics were used.
-- Linux `.deb` and `.AppImage` packages built. The AppImage was launched and exercised through profile loading, selective Acolyte staging, maximum coins, exact preview, and save with backup.
+- Linux `.AppImage` packages built. The AppImage was launched and exercised through profile loading, selective Acolyte staging, maximum coins, exact preview, and save with backup.
 - The documented `pnpm desktop:dev` command launched the native interface and loaded the real bundled catalog.
 - The supplied `baseline.xml` was verified on isolated copies. It already contains all 699 catalog choices. All-unlock saving was a byte-preserving no-op. A controlled copy with missing entries exercised all seven sections, coin changes, idempotent saves, stale-write rejection, and preservation of all bytes outside intended edits.
 - The supplied `baseline.xml` was not modified and is excluded from Git with other profile XML files.
