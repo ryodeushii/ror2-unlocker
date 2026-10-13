@@ -1,0 +1,20 @@
+[package]
+name = "ror2-unlocker"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "ror2_unlocker_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+ror2-profile-core = { path = "../crates/profile-core" }
