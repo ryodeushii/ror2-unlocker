@@ -124,6 +124,16 @@ The raw Linux executable at `target/release/ror2-unlocker` embeds the configured
 
 `.github/workflows/build.yml` checks and packages both native platforms. `.github/workflows/pages.yml` checks the filesystem-free core and browser build, then deploys `dist-web/` to GitHub Pages on `main`. PRs run checks without deploying. GitHub Pages is configured to use GitHub Actions.
 
+#### Linux launcher and taskbar icon
+
+For local builds, desktop integration is a separate per-user installation. KDE identifies the Wayland window as `ror2-unlocker`. Its launcher must therefore be named `~/.local/share/applications/ror2-unlocker.desktop`, with `Name=RoR2 Unlocker`, `Icon=ror2-unlocker`, and `StartupWMClass=ror2-unlocker`. `Exec` and `TryExec` must point to the absolute path of the built `target/release/ror2-unlocker` executable. Update those paths if you move the checkout.
+
+The matching icon assets belong under `~/.local/share/icons/hicolor/`: `scalable/apps/ror2-unlocker.svg`, plus `32x32`, `128x128`, and `256x256` PNG variants in their `apps/` directories. The sources are `assets/icon.svg` and the corresponding images in `src-tauri/icons/`.
+
+After installation, `desktop-file-validate` checks the launcher, `kbuildsycoca6 --noincremental` refreshes KDE's application index, and `gtk-update-icon-cache --force --ignore-theme-index "$HOME/.local/share/icons/hicolor"` refreshes the icon cache. Existing KDE processes can refresh their icon loaders with `dbus-send --session --type=signal /KIconLoader org.kde.KIconLoader.iconChanged int32:0`.
+
+The local registration was verified against the running Wayland window: the titlebar displayed the unlocker icon rather than the generic Wayland icon. The registered launcher and icon are also available to the application menu and taskbar; rebuilding the raw executable alone does not install this metadata.
+
 ## Project layout
 
 - `crates/profile-core/`: shared byte validation, change planning, and XML rendering; native filesystem operations behind the default `native` feature.
