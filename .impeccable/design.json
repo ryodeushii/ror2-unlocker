@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-13T12:55:55.996Z",
+  "title": "Design System: RoR2 Unlocker — Obsidian & ember",
+  "extensions": {
+    "colorMeta": {
+      "ember": {
+        "role": "primary",
+        "displayName": "Ember",
+        "canonical": "#f6a66c"
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Obsidian",
+        "canonical": "#171716"
+      },
+      "complete": {
+        "role": "state",
+        "displayName": "Complete",
+        "canonical": "#a8c7a1"
+      },
+      "error": {
+        "role": "state",
+        "displayName": "Error",
+        "canonical": "#ffb4a4"
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Workspace title",
+        "purpose": "IBM Plex Sans for the application heading."
+      },
+      "body": {
+        "displayName": "Working text",
+        "purpose": "Catalog descriptions, guidance, and labels."
+      }
+    },
+    "shadows": [
+      {
+        "name": "protected-focus",
+        "value": "0 18px 60px #0008",
+        "purpose": "Discard-confirmation dialog only."
+      }
+    ],
+    "motion": [],
+    "breakpoints": [
+      {
+        "name": "expanded",
+        "value": "1600px"
+      },
+      {
+        "name": "compact",
+        "value": "1199px"
+      },
+      {
+        "name": "narrow",
+        "value": "959px"
+      },
+      {
+        "name": "stacked",
+        "value": "760px"
+      },
+      {
+        "name": "small-phone",
+        "value": "380px"
+      },
+      {
+        "name": "short-desktop",
+        "value": "(min-width: 761px) and (max-height: 740px)"
+      }
+    ]
+  },
+  "components": [],
+  "narrative": {
+    "northStar": "Obsidian & ember",
+    "overview": "A charcoal profile-editing workspace with warm ivory text and ember-orange pending edits. Familiar controls and separate catalog/review work areas preserve the local editing and backup workflows. The header has no edition badge; platform-specific actions and safety instructions communicate the workflow differences.",
+    "keyCharacteristics": [
+      "Full-height category rail",
+      "Dominant catalog workspace",
+      "Dedicated changes pane",
+      "Stateful Stage → Review → Save/Download sequence"
+    ],
+    "rules": [
+      {
+        "name": "Pending is not complete",
+        "body": "Ember marks staged progress; green marks existing completed progress. Keep text state labels.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Use Open profile XML as the sole profile opener; keep the loaded path visible.",
+      "Keep exact preview before save or download preparation.",
+      "Keep platform-specific backup guidance beside final actions."
+    ],
+    "donts": [
+      "Do not imitate a fictional HUD.",
+      "Do not treat prepared browser downloads as saved source files."
+    ]
+  }
+}

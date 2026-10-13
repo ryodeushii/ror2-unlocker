@@ -22,7 +22,6 @@ export interface NativeSaveResult extends SaveResult {
 export interface ProfileBackend {
   getCatalog(): Promise<Catalog>;
   pickProfile(input: HTMLInputElement): Promise<ProfileSnapshot | null>;
-  openPath?(path: string): Promise<ProfileSnapshot>;
   preview(args: ChangeRequest): Promise<Preview>;
   save(args: ChangeRequest): Promise<DownloadResult | NativeSaveResult>;
 }

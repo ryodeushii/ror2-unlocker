@@ -16,7 +16,6 @@ export const backend: ProfileBackend = {
       ? invoke<ProfileSnapshot>("open_profile", { path })
       : null;
   },
-  openPath: (path) => invoke<ProfileSnapshot>("open_profile", { path }),
   preview: (args) => invoke<Preview>("preview_changes", { args }),
   async save(args) {
     const result = await invoke<SaveResult>("save_changes", { args });

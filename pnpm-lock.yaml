@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@fontsource/barlow-condensed':
-        specifier: 5.3.0
-        version: 5.3.0
       '@fontsource/ibm-plex-sans':
         specifier: 5.3.0
         version: 5.3.0
@@ -92,9 +89,6 @@ packages:
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [win32]
-
-  '@fontsource/barlow-condensed@5.3.0':
-    resolution: {integrity: sha512-RA7MmIx0v3eQ6Gcf74qLVLOwLB0GpPOzx+eU9iG/AmCnSJGcIWYeU8y6CEMGZ210MGwGg5CZhzLkkvyZdTTk1g==}
 
   '@fontsource/ibm-plex-sans@5.3.0':
     resolution: {integrity: sha512-CbE4CbbEEZJX860XyUiRpsksXIQR8Rp2XDva2VO53NJox9tVNtusrysd2x5YkUEY3ErQ66W1IiiQL8/wihhw5w==}
@@ -608,8 +602,6 @@ snapshots:
 
   '@biomejs/cli-win32-x64@2.5.15':
     optional: true
-
-  '@fontsource/barlow-condensed@5.3.0': {}
 
   '@fontsource/ibm-plex-sans@5.3.0': {}
 

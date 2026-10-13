@@ -24,6 +24,14 @@ Lunar coins accept whole numbers from `0` through `2147483647`. **Max** uses tha
 
 Both editions use the same Rust validation, revision, unlock-dependency, preview, and byte-preserving rendering implementation. They only add progress. DLC ownership, run statistics, and Steam-account achievements are not controlled by this editor.
 
+## Interface
+
+Both editions share the **Obsidian & ember** design: a charcoal category rail, searchable unlock catalog, and separate **Your changes** pane. Labeled states distinguish missing entries, staged edits, and existing completed progress. The **Stage → Review → Save/Download** indicator follows the current editing state.
+
+At smaller web widths, categories scroll horizontally and the changes pane stacks below the catalog. Short desktop windows retain a usable catalog height and scroll the main workspace. Browser-local processing instructions are available in the disclosure below the profile opener; save/backup safety guidance stays beside the final actions.
+
+`PRODUCT.md` records product constraints. `DESIGN.md` and `.impeccable/design.json` record the approved palette, typography, layout, and interaction rules.
+
 ## Browser edition
 
 1. Close Risk of Rain 2 and let Steam Cloud synchronization finish.
@@ -43,7 +51,7 @@ A normal browser cannot monitor game writes or atomically replace the original t
 ## Desktop edition
 
 1. Close the game and finish Steam Cloud synchronization.
-2. Choose **Open profile XML**, or enter a full path and choose **Open path**.
+2. Choose **Open profile XML** and select the profile in the native file picker.
 3. Stage unlocks and optional coin changes.
 4. Choose **Preview changes**, review the field additions, then choose **Save with backup**.
 
@@ -112,6 +120,8 @@ pnpm web:build
 
 Build desktop installers on their target operating systems. Linux binaries depend on host library compatibility; use the Ubuntu 22.04 CI artifact for that baseline rather than assuming an Arch-built AppImage runs on older distributions. Use `APPIMAGE_EXTRACT_AND_RUN=1` if FUSE is unavailable. Windows installers are unsigned unless signing is configured separately.
 
+The raw Linux executable at `target/release/ror2-unlocker` embeds the configured window icon; it is not exclusive to AppImage. The AppImage also contains a `.desktop` launcher and icon-theme assets. A bare ELF executable does not install those assets or acquire a custom file-manager icon. Linux menu and Wayland taskbar identity depend on desktop integration; carrying an AppImage alone does not guarantee that its launcher has been registered with the desktop.
+
 `.github/workflows/build.yml` checks and packages both native platforms. `.github/workflows/pages.yml` checks the filesystem-free core and browser build, then deploys `dist-web/` to GitHub Pages on `main`. PRs run checks without deploying. GitHub Pages is configured to use GitHub Actions.
 
 ## Project layout
@@ -129,4 +139,12 @@ Local checks passed with 20 native-feature Rust behavior tests and 6 filesystem-
 
 The supplied `baseline.xml` already contains all 699 catalog choices. It was verified on isolated copies and remains unchanged. Controlled copies with missing entries verified that downloaded backups match the original byte-for-byte and modified files change only requested fields. Request logs contained only asset reads; no XML uploads occurred. Profiles, backups, generated WASM, dependencies, and build outputs are excluded from Git and deployment artifacts.
 
-Native Windows and Linux CI passed after the LF checkout fix; Linux produces AppImage only. Windows GUI runtime and in-game loading have not been verified locally. No language servers were configured; compiler/linter diagnostics were used. The published Pages site is additionally checked after deployment.
+The redesign passed `pnpm check`, `pnpm build`, and `pnpm web:build`; the Impeccable HTML/CSS detector reported no findings. Final browser captures covered 1440×900, 1024×768, 860×620, 390×844, and 320×740. Real browser interactions exercised staging, coin validation, exact preview/download content, filters, discard confirmation, and malformed-profile recovery.
+
+During the initial redesign, before removal of the manual-path opener, an isolated KWin virtual desktop ran the Linux application at 1320×900 and 860×620. Its local WebKit inspector exercised the actual frontend and Rust commands: open a disposable profile by path, stage Acrid, change coins from 7 to 250, preview, and save with backup. The saved XML matched browser output and the sibling backup matched original bytes. Native automation did not inject input into the active user desktop. TypeScript and Biome language-server diagnostics were checked; TypeScript reports only the existing deprecated `beforeunload` `returnValue` hint.
+
+The picker-only update passed `pnpm check`, `pnpm web:build`, and `pnpm desktop:build`. The browser loaded `baseline.xml` through file selection and kept its filename visible; the actual Linux native file dialog opened from **Open profile XML**. Native selection automation was unavailable in the isolated display, so that path was not claimed as verified. The manual-path form and its unused frontend opening API were removed; the native picker still uses the existing Rust `open_profile` command.
+
+The picker-only detector pass reported existing design-documentation drift for unchanged colors, font sizes, radii, and the monospace fallback. These findings were not repaired as part of removing the manual opener.
+
+Native Windows and Linux CI previously passed after the LF checkout fix; Linux produces AppImage only. Windows GUI runtime and in-game loading remain unverified locally. The redesign has not been deployed; the published Pages site requires verification after deployment.

@@ -1,5 +1,3 @@
-import "@fontsource/barlow-condensed/600.css";
-import "@fontsource/barlow-condensed/700.css";
 import "@fontsource/ibm-plex-sans/400.css";
 import "@fontsource/ibm-plex-sans/500.css";
 import "@fontsource/ibm-plex-sans/600.css";
@@ -31,54 +29,54 @@ const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("Application root is missing.");
 // Only fixed application markup belongs here. All external values use textContent.
 app.innerHTML = `
-  <header class="masthead">
-    <div class="brand-mark" aria-hidden="true">RoR<span>2</span></div>
-    <div><p class="eyebrow">Survivor field terminal</p><h1>Profile unlocker</h1></div>
-    <span class="runtime-tag" id="runtime-tag"></span>
-  </header>
-  <main>
-    <section class="profile-bar" aria-labelledby="profile-title">
-      <div class="profile-heading"><p class="eyebrow">Active profile</p><h2 id="profile-title">No profile connected</h2><p id="profile-path" class="mono subdued">Choose a local UserProfile XML file.</p></div>
-      <fieldset id="profile-controls" class="profile-controls"><legend class="sr-only">Open a profile</legend>
-        <button id="pick-profile" class="primary" type="button">Open profile XML</button>
-        <form id="path-form"><label for="manual-path">Or enter a file path</label><div class="input-action"><input id="manual-path" type="text" placeholder="Full path to your profile.xml" spellcheck="false" autocomplete="off" required /><button type="submit" id="open-path">Open path</button></div></form>
-      </fieldset>
-      <input id="profile-file" type="file" accept=".xml" aria-label="Choose profile XML" hidden />
-    </section>
-    <div id="notice" class="notice" role="status" aria-live="polite" aria-atomic="true"></div>
-    <div id="error" class="error" role="alert" hidden></div>
-    <button id="retry-catalog" type="button" hidden>Retry loading catalog</button>
-    <section id="browser-guidance" class="desktop-guidance" hidden><h2>Browser edition · local files only</h2><p>Your XML stays in this browser tab. It is not uploaded or stored. Prepare and download the modified profile and exact original backup, then manually replace the original with the game closed. This page cannot write to or replace your source file.</p></section>
-    <section id="desktop-guidance" class="desktop-guidance" hidden><h2>Run the desktop app to open profiles</h2><p>This build requires the Linux or Windows desktop application. Use the browser edition to edit a selected XML file locally and download the result.</p></section>
-    <div class="workspace">
-      <nav class="category-rail" aria-label="Unlock categories"><p class="eyebrow">Manifest sections</p><div id="categories"></div><div class="rail-note"><span class="signal-dot" aria-hidden="true"></span><p>Additive edits only.<br />Existing progress stays intact.</p></div></nav>
-      <section class="manifest" aria-labelledby="manifest-title">
-        <div class="section-heading"><div><p class="eyebrow">Unlock manifest</p><h2 id="manifest-title">All entries</h2></div><span id="manifest-count" class="mono subdued"></span></div>
-        <fieldset id="manifest-controls" class="manifest-controls"><legend class="sr-only">Filter and stage entries</legend>
-          <label class="search-label" for="search">Search the manifest<input id="search" type="search" placeholder="Name, identifier, or description" /></label>
-          <div class="filters"><label for="expansion">Expansion<select id="expansion"><option value="">All expansions</option></select></label><label class="checkbox-label"><input id="locked-only" type="checkbox" /> Missing only</label></div>
-          <div class="bulk-actions"><button id="select-visible" type="button">Stage visible missing</button><button id="select-all" type="button">Stage all missing</button></div>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#profile-title" aria-label="RoR2 Unlocker, profile editor"><img src="${new URL("../assets/icon.svg", import.meta.url).href}" alt="" width="36" height="36" /><span>RoR2<span class="brand-subtitle">Profile unlocker</span></span></a>
+      <nav class="category-rail" aria-label="Unlock categories"><h2>Unlock catalog</h2><div id="categories"></div></nav>
+      <div class="rail-note"><span class="signal-dot" aria-hidden="true"></span><p>Additive edits only.<br />Existing progress stays intact.</p></div>
+      <footer><span>Risk of Rain 2</span><span id="workflow-label">Preview → backup → save</span></footer>
+    </aside>
+    <main>
+      <header class="masthead"><h1>Profile editor</h1></header>
+      <section class="profile-bar" aria-labelledby="profile-title">
+        <div class="profile-heading"><div class="profile-label"><span class="profile-indicator" aria-hidden="true"></span><h2 id="profile-title">No profile connected</h2></div><p id="profile-path" class="mono subdued">Choose a local UserProfile XML file.</p></div>
+        <fieldset id="profile-controls" class="profile-controls"><legend class="sr-only">Open a profile</legend>
+          <button id="pick-profile" class="primary" type="button">Open profile XML</button>
         </fieldset>
-        <div class="manifest-key" aria-hidden="true"><span>Entry / internal identifier</span><span>Profile state</span></div>
-        <div id="entries" class="entries"></div>
-        <p id="catalog-source" class="catalog-source subdued"></p>
+        <input id="profile-file" type="file" accept=".xml" aria-label="Choose profile XML" hidden />
       </section>
-      <aside class="inspector" aria-labelledby="inspector-title">
-        <div class="section-heading"><div><p class="eyebrow">Pending changes</p><h2 id="inspector-title">Staging area</h2></div><span id="staged-count" class="count-badge">0</span></div>
-        <fieldset id="staging-controls"><legend class="sr-only">Staged unlocks and lunar coins</legend>
-          <div class="staged-heading"><span class="subdued">Selected entries</span><button id="clear-selection" type="button" class="text-button">Clear</button></div>
-          <ul id="staged-list" class="staged-list"></ul>
-          <section class="coins-section" aria-labelledby="coins-title"><h3 id="coins-title">Lunar coins</h3><p class="subdued">Current balance: <strong id="coin-balance">—</strong></p><label for="coins">New balance <span class="subdued">(optional)</span></label><div class="input-action"><input id="coins" type="text" inputmode="numeric" placeholder="Leave unchanged" aria-describedby="coin-help coin-error" /><button id="max-coins" type="button">Max</button></div><p id="coin-error" class="validation" aria-live="polite"></p><p id="coin-help" class="fine-print">Whole numbers from 0 to 2,147,483,647. The maximum may overflow game-side calculations; a smaller balance is safer.</p></section>
-        </fieldset>
-        <section class="preview-section" aria-labelledby="preview-title"><h3 id="preview-title">Exact preview</h3><div id="preview-content"><p class="subdued">Stage changes, then preview the fields that will be added.</p></div></section>
-        <div class="save-actions"><button id="preview-button" class="primary" type="button">Preview changes</button><button id="save-button" type="button">Save with backup</button></div>
-        <section id="downloads" class="backup-result" aria-label="Prepared profile downloads" hidden><h3>Downloads ready</h3><p>Download both files, then replace the original with the game closed. Your selected original is unchanged.</p><div class="download-actions"><a id="download-modified">Download modified profile</a><a id="download-backup">Download original backup</a></div></section>
-        <div class="safety-note"><h3 id="safety-title">Before saving</h3><p>Close Risk of Rain 2. Steam Cloud can replace local edits; let synchronization finish and resolve any conflict carefully.</p><p id="save-guidance">Each changed save creates a unique backup beside the original. DLC ownership and Steam achievements are not changed.</p></div>
-      </aside>
-    </div>
-  </main>
-  <footer><span>Risk of Rain 2 / local profile operations</span><span id="workflow-label">Preview → backup → save</span></footer>
-  <dialog id="discard-dialog" aria-labelledby="discard-title"><form method="dialog"><p class="eyebrow">Unsaved changes</p><h2 id="discard-title">Open another profile?</h2><p>Your staged unlocks and coin edit will be discarded after the new profile opens successfully.</p><div class="dialog-actions"><button value="cancel" autofocus>Keep editing</button><button value="discard" class="primary">Open another profile</button></div></form></dialog>
+      <div class="feedback"><div id="notice" class="notice" role="status" aria-live="polite" aria-atomic="true"></div><div id="error" class="error" role="alert" hidden></div><button id="retry-catalog" type="button" hidden>Retry loading catalog</button></div>
+      <details id="browser-guidance" class="platform-guidance" hidden><summary>Local files only · how browser editing works</summary><p>Your XML stays in this browser tab. It is not uploaded or stored. Prepare and download the modified profile and exact original backup, then manually replace the original with the game closed. This page cannot write to or replace your source file.</p></details>
+      <section id="desktop-guidance" class="platform-guidance" hidden><h2>Run the desktop app to open profiles</h2><p>This build requires the Linux or Windows desktop application. Use the browser edition to edit a selected XML file locally and download the result.</p></section>
+      <div class="workspace">
+        <section class="manifest" aria-labelledby="manifest-title">
+          <div class="section-heading"><h2 id="manifest-title">All entries</h2><span id="manifest-count" class="subdued"></span></div>
+          <fieldset id="manifest-controls" class="manifest-controls"><legend class="sr-only">Filter and stage entries</legend>
+            <label class="search-label" for="search"><span class="sr-only">Search the catalog</span><input id="search" type="search" placeholder="Search names, identifiers, descriptions…" /></label>
+            <div class="filters"><label for="expansion"><span class="sr-only">Expansion</span><select id="expansion"><option value="">All expansions</option></select></label><label class="checkbox-label"><input id="locked-only" type="checkbox" /> Missing only</label></div>
+            <div class="bulk-actions"><button id="select-visible" type="button">Stage visible missing</button><button id="select-all" type="button">Stage all missing</button></div>
+          </fieldset>
+          <div class="manifest-key" aria-hidden="true"><span>Unlock / identifier</span><span>Profile state</span></div>
+          <div id="entries" class="entries"></div>
+          <p id="catalog-source" class="catalog-source subdued"></p>
+        </section>
+        <aside class="inspector" aria-labelledby="inspector-title">
+          <div class="section-heading"><h2 id="inspector-title">Your changes</h2><span id="staged-count" class="count-badge" aria-label="Staged unlock count">0</span></div>
+          <ol class="workflow" aria-label="Editing workflow"><li id="step-stage" aria-current="step"><span>1</span>Stage</li><li id="step-review"><span>2</span>Review</li><li id="step-save"><span>3</span><span id="final-step-label">Save</span></li></ol>
+          <fieldset id="staging-controls"><legend class="sr-only">Staged unlocks and lunar coins</legend>
+            <div class="staged-heading"><h3>Staged unlocks</h3><button id="clear-selection" type="button" class="text-button">Clear</button></div>
+            <ul id="staged-list" class="staged-list"></ul>
+            <section class="coins-section" aria-labelledby="coins-title"><div class="coins-heading"><h3 id="coins-title">Lunar coins</h3><span class="coin-current subdued">Current: <strong id="coin-balance">—</strong></span></div><label for="coins">New balance <span class="subdued">(optional)</span></label><div class="input-action"><input id="coins" type="text" inputmode="numeric" placeholder="Leave unchanged" aria-describedby="coin-help coin-error" /><button id="max-coins" type="button">Max</button></div><p id="coin-error" class="validation" aria-live="polite"></p><p id="coin-help" class="fine-print">Whole numbers from 0 to 2,147,483,647. The maximum may overflow game-side calculations; a smaller balance is safer.</p></section>
+          </fieldset>
+          <section class="preview-section" aria-labelledby="preview-title"><h3 id="preview-title">Exact preview</h3><div id="preview-content"><p class="subdued">Stage changes, then preview the fields that will be added.</p></div></section>
+          <div class="save-actions"><button id="preview-button" class="primary" type="button">Preview changes</button><button id="save-button" type="button">Save with backup</button></div>
+          <section id="downloads" class="backup-result" aria-label="Prepared profile downloads" hidden><h3>Downloads ready</h3><p>Download both files, then replace the original with the game closed. Your selected original is unchanged.</p><div class="download-actions"><a id="download-modified">Download modified profile</a><a id="download-backup">Download original backup</a></div></section>
+          <div class="safety-note"><h3 id="safety-title">Before saving</h3><p>Close Risk of Rain 2. Steam Cloud can replace local edits; let synchronization finish and resolve any conflict carefully.</p><p id="save-guidance">Each changed save creates a unique backup beside the original. DLC ownership and Steam achievements are not changed.</p></div>
+        </aside>
+      </div>
+    </main>
+  </div>
+  <dialog id="discard-dialog" aria-labelledby="discard-title"><form method="dialog"><h2 id="discard-title">Open another profile?</h2><p>Your staged unlocks and coin edit will be discarded after the new profile opens successfully.</p><div class="dialog-actions"><button value="cancel" autofocus>Keep editing</button><button value="discard" class="primary">Open another profile</button></div></form></dialog>
 `;
 
 function element<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -235,7 +233,7 @@ function renderCategories(): void {
     button.append(
       node("span", item.stamp, `category-stamp ${item.id}`),
       node("span", item.label, "category-name"),
-      node("span", `${completed}/${entries.length}`, "category-count mono"),
+      node("span", `${completed}/${entries.length}`, "category-count"),
     );
     button.title = `${completed} complete of ${entries.length} entries`;
     button.addEventListener("click", () => {
@@ -284,7 +282,9 @@ function renderEntries(): void {
     empty.append(
       node(
         "p",
-        "Nothing is written until you preview and save. A changed save keeps a backup of the original XML.",
+        web
+          ? "Your original stays unchanged. Preview your edits, then download the modified profile and original backup."
+          : "Nothing is written until you preview and save. A changed save keeps a backup of the original XML.",
         "fine-print",
       ),
     );
@@ -375,6 +375,13 @@ function toggleSelection(id: string): void {
 }
 function renderInspector(): void {
   element("staged-count").textContent = String(selection.size);
+  const currentStep =
+    prepared || lastBackup ? "save" : preview ? "review" : "stage";
+  for (const step of ["stage", "review", "save"]) {
+    const marker = element(`step-${step}`);
+    if (step === currentStep) marker.setAttribute("aria-current", "step");
+    else marker.removeAttribute("aria-current");
+  }
   element("coin-balance").textContent = profile
     ? profile.coins.toLocaleString("en-US")
     : "—";
@@ -386,7 +393,7 @@ function renderInspector(): void {
     list.append(node("li", "No unlocks staged.", "subdued"));
   for (const entry of stagedEntries) {
     const item = node("li");
-    const remove = node("button", "×", "remove-entry");
+    const remove = node("button", "Remove", "remove-entry");
     remove.type = "button";
     remove.disabled = busy;
     remove.setAttribute("aria-label", `Remove ${entry.label} from staging`);
@@ -479,6 +486,7 @@ function render(): void {
   element<HTMLFieldSetElement>("manifest-controls").disabled = busy || !catalog;
   element<HTMLFieldSetElement>("staging-controls").disabled = busy || !profile;
   app?.setAttribute("aria-busy", String(busy));
+  app?.classList.toggle("profile-loaded", Boolean(profile));
   element("profile-title").textContent =
     profile?.name || "No profile connected";
   element("profile-path").textContent =
@@ -543,16 +551,6 @@ function applyProfile(snapshot: ProfileSnapshot): void {
   preview = null;
   previewRequest = null;
   lastBackup = null;
-  element<HTMLInputElement>("manual-path").value = snapshot.path;
-}
-async function openProfile(path: string): Promise<void> {
-  if (!backend?.openPath)
-    throw new Error("Manual paths are available only in the desktop app.");
-  const snapshot = await backend.openPath(path);
-  applyProfile(snapshot);
-  status(
-    `Opened ${snapshot.name}. Stage missing entries or edit your lunar coin balance.`,
-  );
 }
 async function loadCatalog(): Promise<void> {
   await run(async () => {
@@ -601,18 +599,6 @@ element("pick-profile").addEventListener("click", () => {
     } else
       status("Profile selection canceled. Your staged changes are unchanged.");
   }, "Choosing a profile…");
-});
-element<HTMLFormElement>("path-form").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const path = element<HTMLInputElement>("manual-path").value.trim();
-  if (!path || !desktop) return;
-  void run(async () => {
-    if (!(await confirmProfileChange())) {
-      status("Kept the current profile and staged changes.");
-      return;
-    }
-    await openProfile(path);
-  }, "Opening profile…");
 });
 element("retry-catalog").addEventListener("click", () => {
   void loadCatalog();
@@ -723,16 +709,11 @@ window.addEventListener("beforeunload", (event) => {
 });
 
 window.addEventListener("pagehide", disposeDownloads);
-element("runtime-tag").textContent = web
-  ? "Browser edition · local WASM"
-  : desktop
-    ? "Local desktop session"
-    : "Desktop build / browser guidance";
 element("desktop-guidance").hidden = desktop || web;
 element("browser-guidance").hidden = !web;
-element("path-form").hidden = !desktop;
 if (web) {
   element("save-button").textContent = "Prepare downloads";
+  element("final-step-label").textContent = "Download";
   element("safety-title").textContent = "Before replacing your profile";
   element("save-guidance").textContent =
     "Download and keep the exact original backup before replacing your profile. Downloads do not change the selected source. DLC ownership and Steam achievements are not changed.";
